@@ -11,6 +11,7 @@
 #include "driver/i2c.h"
 #include "bmx280.h"
 #include "ssd1306.h"
+#include "zigbee_logo.h"
 
 /*------ Clobal definitions -----------*/
 uint16_t CO2_value = 0;
@@ -74,11 +75,12 @@ static void lcd_task(void *pvParameters)
     ssd1306_refresh_gram(ssd1306_dev);
     ssd1306_clear_screen(ssd1306_dev, 0x00);
 
-    char data_str[15] = {0};
-    sprintf(data_str, "ZigBee Sensor");
-    ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)data_str, 16, 1);
+//ssd1306_handle_t dev, uint8_t chXpos, uint8_t chYpos,
+ //                        const uint8_t *pchBmp, uint8_t chWidth, uint8_t chHeight
+
+    ssd1306_draw_bitmap(ssd1306_dev, 0, 16, zigbee, 128, 32);
     ssd1306_refresh_gram(ssd1306_dev);
-	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	vTaskDelay(1500 / portTICK_PERIOD_MS);
 	ssd1306_refresh_gram(ssd1306_dev);
     ssd1306_clear_screen(ssd1306_dev, 0x00);
 	
@@ -194,7 +196,7 @@ static void esp_zb_task(void *pvParameters)
     //esp_zb_cluster_list_add_co2_meas_cluster(esp_zb_cluster_list, esp_zb_co2_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
 
     esp_zb_ep_list_t *esp_zb_ep_list = esp_zb_ep_list_create();
-    esp_zb_ep_list_add_ep(esp_zb_ep_list, esp_zb_cluster_list, CO2_ENDPOINT, ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_SIMPLE_SENSOR_DEVICE_ID);
+    esp_zb_ep_list_add_ep(esp_zb_ep_list, esp_zb_cluster_list, SENSOR_ENDPOINT, ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_SIMPLE_SENSOR_DEVICE_ID);
 
     /* END */
     esp_zb_device_register(esp_zb_ep_list);
