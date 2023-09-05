@@ -21,6 +21,7 @@
 uint16_t CO2_value = 0;
 float temp = 0, pres = 0, hum = 0;
 bool connected = false;
+uint8_t zero_attr_value = 0;
 
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
@@ -210,51 +211,32 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
     ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(mode_mask));
 }
 
-static esp_err_t zb_attribute_reporting_handler(const esp_zb_zcl_report_attr_message_t *message)
+static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message)
 {
-    ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
-    ESP_RETURN_ON_FALSE(message->status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
-                        message->status);
-    ESP_LOGI(TAG, "Reveived report from address(0x%x) src endpoint(%d) to dst endpoint(%d) cluster(0x%x)", message->src_address.u.short_addr,
-             message->src_endpoint, message->dst_endpoint, message->cluster);
-    ESP_LOGI(TAG, "Received report information: attribute(0x%x), type(0x%x), value(%d)\n", message->attribute.id, message->attribute.data.type,
-             message->attribute.data.value ? *(uint8_t *)message->attribute.data.value : 0);
-    return ESP_OK;
-}
-
-static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_message_t *message)
-{
+    esp_err_t ret = ESP_OK;
     ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
     ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
                         message->info.status);
-    ESP_LOGI(TAG, "Read attribute response: status(%d), cluster(0x%x), attribute(0x%x), type(0x%x), value(%d)", message->info.status,
-             message->info.cluster, message->attribute.id, message->attribute.data.type,
-             message->attribute.data.value ? *(uint8_t *)message->attribute.data.value : 0);
-    return ESP_OK;
-}
-
-static esp_err_t zb_configure_report_resp_handler(const esp_zb_zcl_cmd_config_report_resp_message_t *message)
-{
-    ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
-    ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
-                        message->info.status);
-    ESP_LOGI(TAG, "Configure report response: status(%d), cluster(0x%x), attribute(0x%x)", message->info.status, message->info.cluster,
-             message->attribute_id);
-    return ESP_OK;
+    ESP_LOGI(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
+             message->attribute.id, message->attribute.data.size);
+    if (message->info.dst_endpoint == SENSOR_ENDPOINT) {
+        switch (message->info.cluster) {
+        case ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY:
+            ESP_LOGI(TAG, "Identify pressed");
+            break;
+        default:
+            ESP_LOGI(TAG, "Message data: cluster(0x%x), attribute(0x%x)  ", message->info.cluster, message->attribute.id);
+        }
+    }
+    return ret;
 }
 
 static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message)
 {
     esp_err_t ret = ESP_OK;
     switch (callback_id) {
-    case ESP_ZB_CORE_REPORT_ATTR_CB_ID:
-        ret = zb_attribute_reporting_handler((esp_zb_zcl_report_attr_message_t *)message);
-        break;
-    case ESP_ZB_CORE_CMD_READ_ATTR_RESP_CB_ID:
-        ret = zb_read_attr_resp_handler((esp_zb_zcl_cmd_read_attr_resp_message_t *)message);
-        break;
-    case ESP_ZB_CORE_CMD_REPORT_CONFIG_RESP_CB_ID:
-        ret = zb_configure_report_resp_handler((esp_zb_zcl_cmd_config_report_resp_message_t *)message);
+    case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
+        ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
         break;
     default:
         ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
@@ -307,8 +289,7 @@ static void esp_zb_task(void *pvParameters)
     /* initialize Zigbee stack */
     esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZR_CONFIG();
     esp_zb_init(&zb_nwk_cfg);
-    uint8_t temp_attr;
-    temp_attr = 0;
+
     /* basic cluster create with fully customized */
     uint32_t ApplicationVersion = 0x0001;
     uint32_t StackVersion = 0x0002;
@@ -327,7 +308,7 @@ static void esp_zb_task(void *pvParameters)
     /* identify cluster create with fully customized */
 
     esp_zb_attribute_list_t *esp_zb_identify_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY);
-    esp_zb_identify_cluster_add_attr(esp_zb_identify_cluster, ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID, &temp_attr);
+    esp_zb_identify_cluster_add_attr(esp_zb_identify_cluster, ESP_ZB_ZCL_CMD_IDENTIFY_IDENTIFY_ID, &zero_attr_value);
 
     /* Temperature cluster */
     esp_zb_attribute_list_t *esp_zb_temperature_meas_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT);
@@ -377,9 +358,9 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
-	xTaskCreate(lcd_task, "lcd_task", 2048, NULL, 1, NULL);
+	xTaskCreate(lcd_task, "lcd_task", 4096, NULL, 1, NULL);
 	xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
-	xTaskCreate(sensair_tx_task, "sensor_tx_task", 2048, NULL, 3, NULL);
-    xTaskCreate(sensair_rx_task, "sensor_rx_task", 2048, NULL, 4, NULL);
+	xTaskCreate(sensair_tx_task, "sensor_tx_task", 4096, NULL, 3, NULL);
+    xTaskCreate(sensair_rx_task, "sensor_rx_task", 4096, NULL, 4, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
 }
