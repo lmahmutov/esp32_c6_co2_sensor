@@ -22,13 +22,21 @@ uint16_t CO2_value = 0;
 float temp = 0, pres = 0, hum = 0;
 bool connected = false;
 uint8_t zero_attr_value = 0;
+uint8_t screen_number = 0; 
+int lcd_timeout = 30;
 
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
 
 static void button_single_click_cb(void *arg,void *usr_data)
 {
-    ESP_LOGI("Button boot", "Single click");
+    ESP_LOGI("Button boot", "Single click, change screen to %d", screen_number);
+    lcd_timeout = 30;
+    screen_number = screen_number + 1;
+    if ( screen_number == 3)
+    {
+        screen_number = 0;
+    }
 }
 
 static void button_long_press_cb(void *arg,void *usr_data)
@@ -127,7 +135,6 @@ void reportAttribute(uint8_t endpoint, uint16_t clusterID, uint16_t attributeID,
 
 static void lcd_task(void *pvParameters)
 {
-	
 	/* Start lcd */
 	ssd1306_dev = ssd1306_create(I2C_NUM_0, SSD1306_I2C_ADDRESS);
     ssd1306_refresh_gram(ssd1306_dev);
@@ -139,38 +146,89 @@ static void lcd_task(void *pvParameters)
 	
 	while (1)
 	{	
-		if (CO2_value != 0)
-		{
-			ESP_LOGI("LCD", "data updating");
-			ssd1306_refresh_gram(ssd1306_dev);
-			ssd1306_clear_screen(ssd1306_dev, 0x00);
-			char co2_data_str[16] = {0};
-			char temp_data_str[16] = {0};
-			char pres_data_str[16] = {0};
-			char hum_data_str[16] = {0};
- 		   	sprintf(co2_data_str, "CO2 : %d", CO2_value);
-			sprintf(temp_data_str, "Temp: %.2f", temp);
-			sprintf(pres_data_str, "Pres: %.1f", pres/100);
-			sprintf(hum_data_str, "Hum : %.1f", hum);
-	    	ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
- 		   	ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
-	    	ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
-	    	ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
-			ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_image, 16, 16);
-			if (connected)
-			{
-				ssd1306_draw_bitmap(ssd1306_dev, 112, 18, zigbee_connected, 16, 16);
-			}
-	    	else
-			{
-				ssd1306_draw_bitmap(ssd1306_dev, 112, 18, zigbee_disconnected, 16, 16);
-			}
-			ssd1306_refresh_gram(ssd1306_dev);
-		}
-		else
-		{
-			ESP_LOGI("LCD", "Waiting data");
-		}		
+        switch (screen_number) {
+        case 0:
+            ESP_LOGI(TAG, "Screen number 0 ");
+            if (CO2_value != 0)
+            {
+                ESP_LOGI("LCD", "data updating");
+                ssd1306_refresh_gram(ssd1306_dev);
+                ssd1306_clear_screen(ssd1306_dev, 0x00);
+                char co2_data_str[16] = {0};
+                char temp_data_str[16] = {0};
+                char pres_data_str[16] = {0};
+                char hum_data_str[16] = {0};
+                sprintf(co2_data_str, "CO2 : %d", CO2_value);
+                sprintf(temp_data_str, "Temp: %.2f", temp);
+                sprintf(pres_data_str, "Pres: %.1f", pres/100);
+                sprintf(hum_data_str, "Hum : %.1f", hum);
+                ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
+                ssd1306_draw_bitmap(ssd1306_dev, 112, 48, zigbee_image, 16, 16);
+                if (connected)
+                {
+                    ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_connected, 16, 16);
+                }
+                else
+                {
+                    ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_disconnected, 16, 16);
+                }
+                ssd1306_refresh_gram(ssd1306_dev);
+                
+            }
+            else
+            {
+                ESP_LOGI("LCD", "Waiting data");
+            }
+            break;
+        case 1:
+            ESP_LOGI(TAG, "Screen number 1 ");
+            ssd1306_refresh_gram(ssd1306_dev);
+            ssd1306_clear_screen(ssd1306_dev, 0x00);
+            ssd1306_draw_bitmap(ssd1306_dev, 112, 48, zigbee_image, 16, 16);
+            if (connected)
+            {
+                char connected_str[16] = {0};
+                char PAN_ID[16] = {0};
+                char Channel[16] = {0};
+                sprintf(connected_str, "  Connected");
+                sprintf(PAN_ID, "PAN ID : 0x%04hx", esp_zb_get_pan_id());
+                sprintf(Channel, "Channel: %d", esp_zb_get_current_channel());
+                ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)connected_str, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)PAN_ID, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)Channel, 16, 1);
+                ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_connected, 16, 16);
+            }
+            else
+            {
+                char disconnected_str[16] = {0};
+                sprintf(disconnected_str, " Disconnected");
+                ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)disconnected_str, 16, 1);
+                ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_disconnected, 16, 16);
+            }
+            ssd1306_refresh_gram(ssd1306_dev);
+            break;
+        case 2:
+            ESP_LOGI(TAG, "Screen number 2 ");
+            ssd1306_clear_screen(ssd1306_dev, 0x00);
+            ssd1306_refresh_gram(ssd1306_dev);
+            break;
+        default:
+            ESP_LOGW(TAG, "Default screen --------");
+            break;	
+        }
+        lcd_timeout = lcd_timeout - 1;
+        if (lcd_timeout <= 0) 
+        {
+            screen_number = 2;
+        }
+        else
+        {
+            lcd_timeout = lcd_timeout - 1;
+            ESP_LOGI(TAG, "lcd_timeout %d ", lcd_timeout);
+        }
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
