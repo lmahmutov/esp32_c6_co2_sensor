@@ -12,11 +12,15 @@
 #include "bmx280.h"
 #include "ssd1306.h"
 #include "zigbee_logo.h"
+#include "zigbee_connected.h"
+#include "zigbee_disconnected.h"
+#include "zigbee_image.h"
 #include "iot_button.h"
 
 /*------ Clobal definitions -----------*/
 uint16_t CO2_value = 0;
 float temp = 0, pres = 0, hum = 0;
+bool connected = false;
 
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
@@ -133,7 +137,16 @@ static void lcd_task(void *pvParameters)
  		   	ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
 	    	ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
 	    	ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
-	    	ssd1306_refresh_gram(ssd1306_dev);
+			ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_image, 16, 16);
+			if (connected)
+			{
+				ssd1306_draw_bitmap(ssd1306_dev, 112, 18, zigbee_connected, 16, 16);
+			}
+	    	else
+			{
+				ssd1306_draw_bitmap(ssd1306_dev, 112, 18, zigbee_disconnected, 16, 16);
+			}
+			ssd1306_refresh_gram(ssd1306_dev);
 		}
 		else
 		{
