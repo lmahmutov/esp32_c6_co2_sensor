@@ -12,6 +12,7 @@
 #include "bmx280.h"
 #include "ssd1306.h"
 #include "zigbee_logo.h"
+#include "iot_button.h"
 
 /*------ Clobal definitions -----------*/
 uint16_t CO2_value = 0;
@@ -19,6 +20,39 @@ float temp = 0, pres = 0, hum = 0;
 
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
+
+static void button_single_click_cb(void *arg,void *usr_data)
+{
+    ESP_LOGI("Button boot", "BUTTON_SINGLE_CLICK");
+}
+
+static void button_long_press_cb(void *arg,void *usr_data)
+{
+    ESP_LOGI("Button boot", "BUTTON_LONG_PRESS_START");
+}
+
+void register_button()
+{
+	// create gpio button
+	button_config_t gpio_btn_cfg = {
+		.type = BUTTON_TYPE_GPIO,
+		.long_press_time = CONFIG_BUTTON_LONG_PRESS_TIME_MS,
+		.short_press_time = CONFIG_BUTTON_SHORT_PRESS_TIME_MS,
+		.gpio_button_config = {
+			.gpio_num = 9,
+			.active_level = 0,
+		},
+	};
+
+	button_handle_t gpio_btn = iot_button_create(&gpio_btn_cfg);
+	if(NULL == gpio_btn) {
+		ESP_LOGE("Button boot", "Button create failed");
+	}
+
+	iot_button_register_cb(gpio_btn, BUTTON_SINGLE_CLICK, button_single_click_cb,NULL);
+	iot_button_register_cb(gpio_btn, BUTTON_LONG_PRESS_START, button_long_press_cb, NULL);
+
+}
 
 esp_err_t i2c_master_init()
 {
@@ -86,20 +120,28 @@ static void lcd_task(void *pvParameters)
 	
 	while (1)
 	{	
-		ESP_LOGI("LCD", "data updating");
-		char co2_data_str[16] = {0};
-		char temp_data_str[16] = {0};
-		char pres_data_str[16] = {0};
-		char hum_data_str[16] = {0};
-    	sprintf(co2_data_str, "CO2 : %d", CO2_value);
-		sprintf(temp_data_str, "Temp: %.2f", temp);
-		sprintf(pres_data_str, "Pres: %.1f", pres/100);
-		sprintf(hum_data_str, "Hum : %.1f", hum);
-    	ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
-    	ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
-    	ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
-    	ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
-    	ssd1306_refresh_gram(ssd1306_dev);
+		if (CO2_value != 0)
+		{
+			ESP_LOGI("LCD", "data updating");
+			ssd1306_clear_screen(ssd1306_dev, 0x00);
+			char co2_data_str[16] = {0};
+			char temp_data_str[16] = {0};
+			char pres_data_str[16] = {0};
+			char hum_data_str[16] = {0};
+ 		   	sprintf(co2_data_str, "CO2 : %d", CO2_value);
+			sprintf(temp_data_str, "Temp: %.2f", temp);
+			sprintf(pres_data_str, "Pres: %.1f", pres/100);
+			sprintf(hum_data_str, "Hum : %.1f", hum);
+	    	ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
+ 		   	ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
+	    	ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
+	    	ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
+	    	ssd1306_refresh_gram(ssd1306_dev);
+		}
+		else
+		{
+			ESP_LOGI("LCD", "Waiting data");
+		}		
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
@@ -124,7 +166,7 @@ static void bmx280_task(void *pvParameters)
             vTaskDelay(2000 / portTICK_PERIOD_MS);
         } while(bmx280_isSampling(bmx280));
         ESP_ERROR_CHECK(bmx280_readoutFloat(bmx280, &temp, &pres, &hum));
-        ESP_LOGI("BMX280", "Read Values: temp = %f, pres = %f, hum = %f", temp, pres/100, hum);
+        ESP_LOGI("BMX280", "Read Values: temp = %.2f, pres = %.1f, hum = %.1f", temp, pres/100, hum);
     }
 }
 /*----------------------------------------*/
@@ -207,18 +249,19 @@ static void esp_zb_task(void *pvParameters)
 
 void app_main(void)
 {
+	register_button();
     ESP_ERROR_CHECK(i2c_master_init());
-    uart_init();
-    sensair_get_info();
+	uart_init();
+    //sensair_get_info();
     esp_zb_platform_config_t config = {
         .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
         .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
     };
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
-    xTaskCreate(sensair_rx_task, "sensor_rx_task", 2048, NULL, 4, NULL);
-    xTaskCreate(sensair_tx_task, "sensor_tx_task", 2048, NULL, 3, NULL);
-    xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
 	xTaskCreate(lcd_task, "lcd_task", 2048, NULL, 1, NULL);
+	xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
+	xTaskCreate(sensair_tx_task, "sensor_tx_task", 2048, NULL, 3, NULL);
+    xTaskCreate(sensair_rx_task, "sensor_rx_task", 2048, NULL, 4, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
 }
