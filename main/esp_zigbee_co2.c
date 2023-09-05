@@ -110,20 +110,16 @@ static void lcd_task(void *pvParameters)
     ssd1306_refresh_gram(ssd1306_dev);
     ssd1306_clear_screen(ssd1306_dev, 0x00);
 
-//ssd1306_handle_t dev, uint8_t chXpos, uint8_t chYpos,
- //                        const uint8_t *pchBmp, uint8_t chWidth, uint8_t chHeight
-
     ssd1306_draw_bitmap(ssd1306_dev, 0, 16, zigbee, 128, 32);
     ssd1306_refresh_gram(ssd1306_dev);
 	vTaskDelay(1500 / portTICK_PERIOD_MS);
-	ssd1306_refresh_gram(ssd1306_dev);
-    ssd1306_clear_screen(ssd1306_dev, 0x00);
 	
 	while (1)
 	{	
 		if (CO2_value != 0)
 		{
 			ESP_LOGI("LCD", "data updating");
+			ssd1306_refresh_gram(ssd1306_dev);
 			ssd1306_clear_screen(ssd1306_dev, 0x00);
 			char co2_data_str[16] = {0};
 			char temp_data_str[16] = {0};
