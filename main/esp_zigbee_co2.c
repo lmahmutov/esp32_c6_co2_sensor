@@ -22,7 +22,10 @@
 #include "zcl/esp_zigbee_zcl_common.h"
 #include "sensair_s8.h"
 #include "driver/i2c.h"
-#include "bme280.h"
+//#include "bme280.h"
+#include "ssd1306.h"
+
+static ssd1306_handle_t ssd1306_dev = NULL;
 
 /* ----------- BME280 ------------------- */
 #define SDA_PIN GPIO_NUM_6
@@ -46,7 +49,7 @@ void i2c_master_init()
 	i2c_param_config(I2C_NUM_0, &i2c_config);
 	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
 }
-
+/*
 s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 {
 	s32 iError = BME280_INIT_VALUE;
@@ -61,7 +64,7 @@ s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 	i2c_master_write(cmd, reg_data, cnt, true);
 	i2c_master_stop(cmd);
 
-	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10/portTICK_PERIOD_MS);
+	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_PERIOD_MS);
 	if (espRc == ESP_OK) {
 		iError = SUCCESS;
 	} else {
@@ -92,7 +95,7 @@ s8 BME280_I2C_bus_read(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 	i2c_master_read_byte(cmd, reg_data+cnt-1, I2C_MASTER_NACK);
 	i2c_master_stop(cmd);
 
-	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10/portTICK_PERIOD_MS);
+	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_PERIOD_MS);
 	if (espRc == ESP_OK) {
 		iError = SUCCESS;
 	} else {
@@ -155,7 +158,7 @@ void bme280_reader_task(void *ignore)
 
 	vTaskDelete(NULL);
 }
-
+*/
 /* -------------------------------------- */
 #if !defined CONFIG_ZB_ZCZR
 #error Define ZB_ZCZR in idf.py menuconfig to compile light (Router) source code.
@@ -242,6 +245,16 @@ static void esp_zb_task(void *pvParameters)
 void app_main(void)
 {
     i2c_master_init();
+	
+	ssd1306_dev = ssd1306_create(I2C_NUM_0, SSD1306_I2C_ADDRESS);
+    ssd1306_refresh_gram(ssd1306_dev);
+    ssd1306_clear_screen(ssd1306_dev, 0x00);
+
+    char data_str[10] = {0};
+    sprintf(data_str, "ZigBee");
+    ssd1306_draw_string(ssd1306_dev, 70, 16, (const uint8_t *)data_str, 16, 1);
+    ssd1306_refresh_gram(ssd1306_dev);
+
     uart_init();
     sensair_get_info();
     esp_zb_platform_config_t config = {
@@ -252,6 +265,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
     xTaskCreate(sensair_rx_task, "sensor_rx_task", 2048, NULL, 4, NULL);
     xTaskCreate(sensair_tx_task, "sensor_tx_task", 2048, NULL, 3, NULL);
-    xTaskCreate(bme280_reader_task, "bme280_reader_task",  2048, NULL, 2, NULL);
+   // xTaskCreate(bme280_reader_task, "bme280_reader_task",  2048, NULL, 2, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
 }
