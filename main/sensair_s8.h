@@ -13,6 +13,7 @@
 #include "string.h"
 #include "driver/gpio.h"
 
+extern uint16_t CO2_value;
 void uart_init(void);
 void sensair_get_info();
 void sensair_tx_task();

@@ -1,16 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: CC0-1.0
- *
- * Zigbee customized client Example
- *
- * This example code is in the Public Domain (or CC0 licensed, at your option.)
- *
- * Unless required by applicable law or agreed to in writing, this
- * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
- * CONDITIONS OF ANY KIND, either express or implied.
- */
 #include "esp_zigbee_co2.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -22,149 +9,123 @@
 #include "zcl/esp_zigbee_zcl_common.h"
 #include "sensair_s8.h"
 #include "driver/i2c.h"
-//#include "bme280.h"
+#include "bmx280.h"
 #include "ssd1306.h"
 
+/*------ Clobal definitions -----------*/
+uint16_t CO2_value = 0;
+float temp = 0, pres = 0, hum = 0;
+
 static ssd1306_handle_t ssd1306_dev = NULL;
+SemaphoreHandle_t i2c_semaphore = NULL;
 
-/* ----------- BME280 ------------------- */
-#define SDA_PIN GPIO_NUM_6
-#define SCL_PIN GPIO_NUM_7
-
-#define TAG_BME280 "BME280"
-
-#define I2C_MASTER_ACK 0
-#define I2C_MASTER_NACK 1
-
-void i2c_master_init()
+esp_err_t i2c_master_init()
 {
+	    // Don't initialize twice
+    if (i2c_semaphore != NULL)
+	{
+		return ESP_FAIL;
+	}
+        
+    i2c_semaphore = xSemaphoreCreateMutex();
+    if (i2c_semaphore == NULL)
+	{
+		return ESP_FAIL;
+	}
+        
 	i2c_config_t i2c_config = {
 		.mode = I2C_MODE_MASTER,
-		.sda_io_num = SDA_PIN,
-		.scl_io_num = SCL_PIN,
+		.sda_io_num = GPIO_NUM_6,
+		.scl_io_num = GPIO_NUM_7,
 		.sda_pullup_en = GPIO_PULLUP_ENABLE,
 		.scl_pullup_en = GPIO_PULLUP_ENABLE,
 		.master.clk_speed = 1000000
 	};
-	i2c_param_config(I2C_NUM_0, &i2c_config);
-	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
-}
-/*
-s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
-{
-	s32 iError = BME280_INIT_VALUE;
 
-	esp_err_t espRc;
-	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	esp_err_t ret;
 
-	i2c_master_start(cmd);
-	i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true);
-
-	i2c_master_write_byte(cmd, reg_addr, true);
-	i2c_master_write(cmd, reg_data, cnt, true);
-	i2c_master_stop(cmd);
-
-	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_PERIOD_MS);
-	if (espRc == ESP_OK) {
-		iError = SUCCESS;
-	} else {
-		iError = ERROR;
+	ret = i2c_param_config(I2C_NUM_0, &i2c_config);
+	if(ret != ESP_OK)
+	{
+		return ret;
 	}
-	i2c_cmd_link_delete(cmd);
-
-	return (s8)iError;
-}
-
-s8 BME280_I2C_bus_read(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
-{
-	s32 iError = BME280_INIT_VALUE;
-	esp_err_t espRc;
-
-	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-	i2c_master_start(cmd);
-	i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true);
-	i2c_master_write_byte(cmd, reg_addr, true);
-
-	i2c_master_start(cmd);
-	i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_READ, true);
-
-	if (cnt > 1) {
-		i2c_master_read(cmd, reg_data, cnt-1, I2C_MASTER_ACK);
+        
+	ret = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
+	if(ret != ESP_OK)
+	{
+		return ret;
 	}
-	i2c_master_read_byte(cmd, reg_data+cnt-1, I2C_MASTER_NACK);
-	i2c_master_stop(cmd);
-
-	espRc = i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_PERIOD_MS);
-	if (espRc == ESP_OK) {
-		iError = SUCCESS;
-	} else {
-		iError = ERROR;
-	}
-
-	i2c_cmd_link_delete(cmd);
-
-	return (s8)iError;
+        
+    return ESP_OK;
 }
 
-void BME280_delay_msek(u32 msek)
-{
-	vTaskDelay(msek/portTICK_PERIOD_MS);
-}
-
-void bme280_reader_task(void *ignore)
-{
-	struct bme280_t bme280 = {
-		.bus_write = BME280_I2C_bus_write,
-		.bus_read = BME280_I2C_bus_read,
-		.dev_addr = BME280_I2C_ADDRESS1,
-		.delay_msec = BME280_delay_msek
-	};
-
-	s32 com_rslt;
-	s32 v_uncomp_pressure_s32;
-	s32 v_uncomp_temperature_s32;
-	s32 v_uncomp_humidity_s32;
-
-	com_rslt = bme280_init(&bme280);
-
-	com_rslt += bme280_set_oversamp_pressure(BME280_OVERSAMP_16X);
-	com_rslt += bme280_set_oversamp_temperature(BME280_OVERSAMP_2X);
-	com_rslt += bme280_set_oversamp_humidity(BME280_OVERSAMP_1X);
-
-	com_rslt += bme280_set_standby_durn(BME280_STANDBY_TIME_1_MS);
-	com_rslt += bme280_set_filter(BME280_FILTER_COEFF_16);
-
-	com_rslt += bme280_set_power_mode(BME280_NORMAL_MODE);
-	if (com_rslt == SUCCESS) {
-		while(true) {
-			vTaskDelay(5000/portTICK_PERIOD_MS);
-
-			com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
-				&v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
-
-			if (com_rslt == SUCCESS) {
-				ESP_LOGI(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
-					bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-					bme280_compensate_pressure_double(v_uncomp_pressure_s32)/100, // Pa -> hPa
-					bme280_compensate_humidity_double(v_uncomp_humidity_s32));
-			} else {
-				ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
-			}
-		}
-	} else {
-		ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
-	}
-
-	vTaskDelete(NULL);
-}
-*/
-/* -------------------------------------- */
 #if !defined CONFIG_ZB_ZCZR
 #error Define ZB_ZCZR in idf.py menuconfig to compile light (Router) source code.
 #endif
 
 static const char *TAG = "ESP_HA_CO2_SENSOR";
+
+/* --------- User task section -----------------*/
+static void lcd_task(void *pvParameters)
+{
+	
+	/* Start lcd */
+	ssd1306_dev = ssd1306_create(I2C_NUM_0, SSD1306_I2C_ADDRESS);
+    ssd1306_refresh_gram(ssd1306_dev);
+    ssd1306_clear_screen(ssd1306_dev, 0x00);
+
+    char data_str[15] = {0};
+    sprintf(data_str, "ZigBee Sensor");
+    ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)data_str, 16, 1);
+    ssd1306_refresh_gram(ssd1306_dev);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	ssd1306_refresh_gram(ssd1306_dev);
+    ssd1306_clear_screen(ssd1306_dev, 0x00);
+	
+	while (1)
+	{	
+		ESP_LOGI("LCD", "data updating");
+		char co2_data_str[16] = {0};
+		char temp_data_str[16] = {0};
+		char pres_data_str[16] = {0};
+		char hum_data_str[16] = {0};
+    	sprintf(co2_data_str, "CO2 : %d", CO2_value);
+		sprintf(temp_data_str, "Temp: %.2f", temp);
+		sprintf(pres_data_str, "Pres: %.1f", pres/100);
+		sprintf(hum_data_str, "Hum : %.1f", hum);
+    	ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
+    	ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
+    	ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
+    	ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)hum_data_str, 16, 1);
+    	ssd1306_refresh_gram(ssd1306_dev);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
+}
+
+static void bmx280_task(void *pvParameters)
+{
+	bmx280_t* bmx280 = bmx280_create(I2C_NUM_0);
+
+    if (!bmx280) { 
+        ESP_LOGE("BMX280", "Could not create bmx280 driver.");
+        return;
+    }
+
+    ESP_ERROR_CHECK(bmx280_init(bmx280));
+    bmx280_config_t bmx_cfg = BMX280_DEFAULT_CONFIG;
+    ESP_ERROR_CHECK(bmx280_configure(bmx280, &bmx_cfg));
+
+    while (1)
+    {
+        ESP_ERROR_CHECK(bmx280_setMode(bmx280, BMX280_MODE_FORCE));
+        do {
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+        } while(bmx280_isSampling(bmx280));
+        ESP_ERROR_CHECK(bmx280_readoutFloat(bmx280, &temp, &pres, &hum));
+        ESP_LOGI("BMX280", "Read Values: temp = %f, pres = %f, hum = %f", temp, pres/100, hum);
+    }
+}
+/*----------------------------------------*/
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
 {
@@ -244,17 +205,7 @@ static void esp_zb_task(void *pvParameters)
 
 void app_main(void)
 {
-    i2c_master_init();
-	
-	ssd1306_dev = ssd1306_create(I2C_NUM_0, SSD1306_I2C_ADDRESS);
-    ssd1306_refresh_gram(ssd1306_dev);
-    ssd1306_clear_screen(ssd1306_dev, 0x00);
-
-    char data_str[10] = {0};
-    sprintf(data_str, "ZigBee");
-    ssd1306_draw_string(ssd1306_dev, 70, 16, (const uint8_t *)data_str, 16, 1);
-    ssd1306_refresh_gram(ssd1306_dev);
-
+    ESP_ERROR_CHECK(i2c_master_init());
     uart_init();
     sensair_get_info();
     esp_zb_platform_config_t config = {
@@ -265,6 +216,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
     xTaskCreate(sensair_rx_task, "sensor_rx_task", 2048, NULL, 4, NULL);
     xTaskCreate(sensair_tx_task, "sensor_tx_task", 2048, NULL, 3, NULL);
-   // xTaskCreate(bme280_reader_task, "bme280_reader_task",  2048, NULL, 2, NULL);
+    xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
+	xTaskCreate(lcd_task, "lcd_task", 2048, NULL, 1, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
 }

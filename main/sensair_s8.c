@@ -125,7 +125,8 @@ void sensair_rx_task()
             ReadCRC = (uint16_t)vResponse[6] * 256 + (uint16_t)vResponse[5];
             DataCRC = ModBus_CRC(vResponse, 5);
             if (DataCRC == ReadCRC) {
-                ESP_LOGI(RX_TASK_TAG, "CO2 %d ", vResponse[3] * 256 + vResponse[4]);
+                CO2_value = vResponse[3] * 256 + vResponse[4] ;
+                ESP_LOGI(RX_TASK_TAG, "CO2 %d ", CO2_value);
             } else 
             {
                 ESP_LOGI(RX_TASK_TAG, "CRC-Fehler %ld ungleich %ld", ReadCRC, DataCRC);
