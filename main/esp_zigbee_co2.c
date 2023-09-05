@@ -16,6 +16,7 @@
 #include "zigbee_disconnected.h"
 #include "zigbee_image.h"
 #include "iot_button.h"
+#include <time.h>
 
 /*------ Clobal definitions -----------*/
 uint16_t CO2_value = 0;
@@ -269,6 +270,19 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
     ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(mode_mask));
 }
 
+//SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_TIME, ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE, ESP_ZB_ZCL_ATTR_TIME_TIME_ID);
+void read_server_time()
+{
+    esp_zb_zcl_read_attr_cmd_t read_req;
+    read_req.address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
+    read_req.attributeID = ESP_ZB_ZCL_ATTR_TIME_LOCAL_TIME_ID;
+    read_req.clusterID = ESP_ZB_ZCL_CLUSTER_ID_TIME;
+    read_req.zcl_basic_cmd.dst_endpoint = 1;
+    read_req.zcl_basic_cmd.src_endpoint = 1;
+    read_req.zcl_basic_cmd.dst_addr_u.addr_short = 0x0000;
+    esp_zb_zcl_read_attr_cmd_req(&read_req);
+}
+
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message)
 {
     esp_err_t ret = ESP_OK;
@@ -289,12 +303,40 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
     return ret;
 }
 
+static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_message_t *message)
+{
+    ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
+    ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
+                        message->info.status);
+    ESP_LOGI(TAG, "Read attribute response: status(%d), cluster(0x%x), attribute(0x%x), type(0x%x), value(%d)", message->info.status,
+             message->info.cluster, message->attribute.id, message->attribute.data.type,
+             message->attribute.data.value ? *(uint8_t *)message->attribute.data.value : 0);
+    if (message->info.dst_endpoint == SENSOR_ENDPOINT) {
+        switch (message->info.cluster) {
+        case ESP_ZB_ZCL_CLUSTER_ID_TIME:
+            time_t rawtime = *(uint32_t*) message->attribute.data.value + 946684800;
+            struct tm  ts;
+            char       buf[80];
+            ts = *localtime(&rawtime);
+            strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", &ts);
+            ESP_LOGW(TAG, "Server time recieved %s", buf);
+            break;
+        default:
+            ESP_LOGI(TAG, "Message data: cluster(0x%x), attribute(0x%x)  ", message->info.cluster, message->attribute.id);
+        }
+    }
+    return ESP_OK;
+}
+
 static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message)
 {
     esp_err_t ret = ESP_OK;
     switch (callback_id) {
     case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
         ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
+        break;
+    case ESP_ZB_CORE_CMD_READ_ATTR_RESP_CB_ID:
+        ret = zb_read_attr_resp_handler((esp_zb_zcl_cmd_read_attr_resp_message_t *)message);
         break;
     default:
         ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
@@ -326,6 +368,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                      extended_pan_id[7], extended_pan_id[6], extended_pan_id[5], extended_pan_id[4],
                      extended_pan_id[3], extended_pan_id[2], extended_pan_id[1], extended_pan_id[0],
                      esp_zb_get_pan_id(), esp_zb_get_current_channel());
+            read_server_time();
         }
         break;
     case ESP_ZB_ZDO_SIGNAL_LEAVE:
@@ -380,6 +423,9 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_attribute_list_t *esp_zb_press_meas_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT);
     esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID, &pres);
 
+    /* Time cluster */
+    esp_zb_attribute_list_t *esp_zb_server_time_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_TIME);
+
     /* Carbon Dioxide cluster */
     //esp_zb_attribute_list_t *esp_zb_co2_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_CARBON_DIOXIDE_MEAS);
     //esp_zb_co2_meas_cluster_add_attr(esp_zb_co2_cluster, ESP_ZB_ZCL_ATTR_CO2_MEASUREMENT_VALUE_ID, &test_attr);
@@ -391,6 +437,7 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_cluster_list_add_temperature_meas_cluster(esp_zb_cluster_list, esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_cluster_list_add_humidity_meas_cluster(esp_zb_cluster_list, esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_cluster_list_add_pressure_meas_cluster(esp_zb_cluster_list, esp_zb_press_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_time_cluster(esp_zb_cluster_list, esp_zb_server_time_cluster, ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE);
     //esp_zb_cluster_list_add_co2_meas_cluster(esp_zb_cluster_list, esp_zb_co2_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
 
     esp_zb_ep_list_t *esp_zb_ep_list = esp_zb_ep_list_create();
