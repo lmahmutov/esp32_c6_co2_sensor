@@ -23,12 +23,13 @@ SemaphoreHandle_t i2c_semaphore = NULL;
 
 static void button_single_click_cb(void *arg,void *usr_data)
 {
-    ESP_LOGI("Button boot", "BUTTON_SINGLE_CLICK");
+    ESP_LOGI("Button boot", "Single click");
 }
 
 static void button_long_press_cb(void *arg,void *usr_data)
 {
-    ESP_LOGI("Button boot", "BUTTON_LONG_PRESS_START");
+	ESP_LOGI("Button boot", "Long press, leave & reset");
+	esp_zb_factory_reset();
 }
 
 void register_button()
