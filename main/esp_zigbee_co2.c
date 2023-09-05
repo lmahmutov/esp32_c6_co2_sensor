@@ -17,6 +17,7 @@
 #include "zigbee_image.h"
 #include "iot_button.h"
 #include <time.h>
+#include <sys/time.h>
 
 /*------ Clobal definitions -----------*/
 uint16_t CO2_value = 0;
@@ -134,6 +135,7 @@ void reportAttribute(uint8_t endpoint, uint16_t clusterID, uint16_t attributeID,
     esp_zb_zcl_report_attr_cmd_req(&cmd);
 }
 
+
 static void lcd_task(void *pvParameters)
 {
 	/* Start lcd */
@@ -191,6 +193,13 @@ static void lcd_task(void *pvParameters)
             ssd1306_draw_bitmap(ssd1306_dev, 112, 48, zigbee_image, 16, 16);
             if (connected)
             {
+                time_t now;
+                char strftime_buf[64];
+                struct tm timeinfo;
+                time(&now);
+                localtime_r(&now, &timeinfo);
+                strftime(strftime_buf, sizeof(strftime_buf), "%a %H:%M:%S", &timeinfo);
+                ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
                 char connected_str[16] = {0};
                 char PAN_ID[16] = {0};
                 char Channel[16] = {0};
@@ -200,6 +209,7 @@ static void lcd_task(void *pvParameters)
                 ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)connected_str, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)PAN_ID, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)Channel, 16, 1);
+                ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)strftime_buf, 16, 1);
                 ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_connected, 16, 16);
             }
             else
@@ -314,12 +324,10 @@ static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_m
     if (message->info.dst_endpoint == SENSOR_ENDPOINT) {
         switch (message->info.cluster) {
         case ESP_ZB_ZCL_CLUSTER_ID_TIME:
-            time_t rawtime = *(uint32_t*) message->attribute.data.value + 946684800;
-            struct tm  ts;
-            char       buf[80];
-            ts = *localtime(&rawtime);
-            strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", &ts);
-            ESP_LOGW(TAG, "Server time recieved %s", buf);
+            ESP_LOGI(TAG, "Server time recieved");
+            struct timeval tv;
+            tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800;
+            settimeofday(&tv, NULL);
             break;
         default:
             ESP_LOGI(TAG, "Message data: cluster(0x%x), attribute(0x%x)  ", message->info.cluster, message->attribute.id);
