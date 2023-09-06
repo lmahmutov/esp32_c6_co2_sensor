@@ -18,6 +18,7 @@
 #define MAX_CHILDREN                      10                                    /* the max amount of connected devices */
 #define INSTALLCODE_POLICY_ENABLE         false                                 /* enable the install code policy for security */
 #define SENSOR_ENDPOINT                      1
+#define CO2_CUSTOM_CLUSTER              (0xFFF2)                               /* Custom cluster used because standart cluster not working*/
 #define ESP_ZB_PRIMARY_CHANNEL_MASK       ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK  /* Zigbee primary channel mask use in the example */
 
 #define ESP_ZB_ZR_CONFIG()                                                              \
