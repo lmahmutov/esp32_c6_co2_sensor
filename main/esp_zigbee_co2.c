@@ -273,10 +273,10 @@ static void bmx280_task(void *pvParameters)
         uint16_t temperature = (uint16_t)(temp * 100);
         uint16_t humidity = (uint16_t)(hum * 100);
         uint16_t pressure = (uint16_t)(pres/100);
-        reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID, &temperature, 2);
-        reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_VALUE_ID, &humidity, 2);
-        reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID, &pressure, 2);
-        reportAttribute(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, 0, &CO2_value, 2);
+        //reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID, &temperature, 2);
+        //reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_VALUE_ID, &humidity, 2);
+        //reportAttribute(SENSOR_ENDPOINT, ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID, &pressure, 2);
+        //reportAttribute(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, 0, &CO2_value, 2);
     }
 }
 /*----------------------------------------*/
@@ -413,6 +413,7 @@ static void esp_zb_task(void *pvParameters)
     uint8_t ManufacturerName[] = {9, 'L', 'm', 'a', 'h', 'm', 'u', 't', 'o', 'v'}; // warning: this is in format {length, 'string'} :
     uint8_t ModelIdentifier[] = {14, 'A', 'i', 'r', ' ', 'S', 'e', 'n', 's', 'o', 'r', ' ', '1' ,'.', '0'};
     uint8_t DateCode[] = {8, '2', '0', '2', '3', '0', '9', '0', '5'};
+    uint8_t Firmware_version[] = {7 , 'v', 'e', 'r','-', '1', '.', '0'};
     esp_zb_attribute_list_t *esp_zb_basic_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_BASIC);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_APPLICATION_VERSION_ID, &ApplicationVersion);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_STACK_VERSION_ID, &StackVersion);
@@ -420,6 +421,7 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ManufacturerName);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ModelIdentifier);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, DateCode);
+    esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_SW_BUILD_ID, Firmware_version);
 
     /* identify cluster create with fully customized */
 
