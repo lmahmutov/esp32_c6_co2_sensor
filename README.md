@@ -11,7 +11,7 @@ ESP32-C6 zigbee Air-sensor 1.0
   
 Плата собрана на макетке, просто проводами.
  
-![сбока](github_images\wiring.png)
+![сбока](github_images/wiring.png)
 
 Sensair S8 подключается к UART линии, пины ESP
  * TXD_PIN (GPIO_NUM_5)
@@ -29,14 +29,14 @@ SSD1306 и bme280 подключаются к линии I2C, пины ESP
 
 
 Для платы распечатан простейший корпус, чтобы не обрвались провода ) 
-![Внешний вид](github_images\device.jpg)
+![Внешний вид](github_images/device.jpg)
 
 Варианты экранов:\
 Основной экран \
-![Основной экран](github_images\main-screen.png)
+![Основной экран](github_images/main-screen.png)
 
 Экран статуса подключения \
-![Экран статуса](github_images\second-screen.png)
+![Экран статуса](github_images/second-screen.png)
 
 Через 15 секунд после включения экран погаснет.
 
