@@ -409,8 +409,8 @@ static void esp_zb_task(void *pvParameters)
     uint32_t ApplicationVersion = 0x0001;
     uint32_t StackVersion = 0x0002;
     uint32_t HWVersion = 0x0002;
-    uint8_t ManufacturerName[] = {8, 'L', 'm', 'a', 'h', 'u', 't', 'o', 'v'}; // warning: this is in format {length, 'string'} :
-    uint8_t ModelIdentifier[] = {14, 'A', 'i', 'r', '-', 's', 'e', 'n', 's', 'o', 'r', ' ', '1' ,'.', '0'};
+    uint8_t ManufacturerName[] = {9, 'L', 'm', 'a', 'h', 'm', 'u', 't', 'o', 'v'}; // warning: this is in format {length, 'string'} :
+    uint8_t ModelIdentifier[] = {14, 'A', 'i', 'r', ' ', 'S', 'e', 'n', 's', 'o', 'r', ' ', '1' ,'.', '0'};
     uint8_t DateCode[] = {8, '2', '0', '2', '3', '0', '9', '0', '5'};
     esp_zb_attribute_list_t *esp_zb_basic_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_BASIC);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_APPLICATION_VERSION_ID, &ApplicationVersion);
