@@ -26,6 +26,7 @@ bool connected = false;
 uint8_t zero_attr_value = 0;
 uint8_t screen_number = 0; 
 int lcd_timeout = 30;
+bool time_updated = false;
 
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
@@ -193,13 +194,18 @@ static void lcd_task(void *pvParameters)
             ssd1306_draw_bitmap(ssd1306_dev, 112, 48, zigbee_image, 16, 16);
             if (connected)
             {
-                time_t now;
-                char strftime_buf[64];
-                struct tm timeinfo;
-                time(&now);
-                localtime_r(&now, &timeinfo);
-                strftime(strftime_buf, sizeof(strftime_buf), "%a %H:%M:%S", &timeinfo);
-                ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
+                if (time_updated)
+                {
+                    time_t now;
+                    char strftime_buf[64];
+                    struct tm timeinfo;
+                    time(&now);
+                    localtime_r(&now, &timeinfo);
+                    strftime(strftime_buf, sizeof(strftime_buf), "%a %H:%M:%S", &timeinfo);
+                    ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
+                    ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)strftime_buf, 16, 1);
+                }
+
                 char connected_str[16] = {0};
                 char PAN_ID[16] = {0};
                 char Channel[16] = {0};
@@ -209,7 +215,6 @@ static void lcd_task(void *pvParameters)
                 ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)connected_str, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)PAN_ID, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)Channel, 16, 1);
-                ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)strftime_buf, 16, 1);
                 ssd1306_draw_bitmap(ssd1306_dev, 112, 0, zigbee_connected, 16, 16);
             }
             else
@@ -328,6 +333,7 @@ static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_m
             struct timeval tv;
             tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800;
             settimeofday(&tv, NULL);
+            time_updated = true;
             break;
         default:
             ESP_LOGI(TAG, "Message data: cluster(0x%x), attribute(0x%x)  ", message->info.cluster, message->attribute.id);
