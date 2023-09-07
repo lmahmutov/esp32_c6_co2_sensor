@@ -25,6 +25,7 @@ bool time_updated = false, connected = false;
 int lcd_timeout = 30;
 uint8_t screen_number = 0; 
 uint16_t temperature = 0, humidity = 0, pressure = 0, CO2_value = 0;
+float temp = 0, pres = 0, hum = 0;
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
 static const char *TAG = "ESP_HA_CO2_SENSOR";
@@ -140,9 +141,9 @@ static void lcd_task(void *pvParameters)
                 char pres_data_str[16] = {0};
                 char hum_data_str[16] = {0};
                 sprintf(co2_data_str, "CO2 : %d", CO2_value);
-                sprintf(temp_data_str, "Temp: %d", temperature/100);
-                sprintf(pres_data_str, "Pres: %d", pressure);
-                sprintf(hum_data_str, "Hum : %d", humidity/100);
+                sprintf(temp_data_str, "Temp: %.2f", temp);
+                sprintf(pres_data_str, "Pres: %.1f", pres/100);
+                sprintf(hum_data_str, "Hum : %.1f", hum);
                 ssd1306_draw_string(ssd1306_dev, 5, 0, (const uint8_t *)co2_data_str, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 16, (const uint8_t *)temp_data_str, 16, 1);
                 ssd1306_draw_string(ssd1306_dev, 5, 32, (const uint8_t *)pres_data_str, 16, 1);
@@ -228,7 +229,6 @@ static void lcd_task(void *pvParameters)
 
 static void bmx280_task(void *pvParameters)
 {
-    static float temp = 0, pres = 0, hum = 0;
 	bmx280_t* bmx280 = bmx280_create(I2C_NUM_0);
 
     if (!bmx280) { 
@@ -360,9 +360,9 @@ static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_m
     if (message->info.dst_endpoint == SENSOR_ENDPOINT) {
         switch (message->info.cluster) {
         case ESP_ZB_ZCL_CLUSTER_ID_TIME:
-            ESP_LOGI(TAG, "Server time recieved");
+            ESP_LOGI(TAG, "Server time recieved %lu", *(uint32_t*) message->attribute.data.value);
             struct timeval tv;
-            tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800;
+            tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800 - 1080;
             settimeofday(&tv, NULL);
             time_updated = true;
             break;
@@ -390,7 +390,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
     return ret;
 }
 
-static void read_server_time()
+void read_server_time()
 {
     esp_zb_zcl_read_attr_cmd_t read_req;
     read_req.address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
@@ -454,6 +454,8 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZR_CONFIG();
     esp_zb_init(&zb_nwk_cfg);
 
+    uint16_t undefined_value;
+    undefined_value = 0x8000;
    /* basic cluster create with fully customized */
     set_zcl_string(manufacturer, MANUFACTURER_NAME);
     set_zcl_string(model, MODEL_NAME);
@@ -474,21 +476,21 @@ static void esp_zb_task(void *pvParameters)
 
     /* Temperature cluster */
     esp_zb_attribute_list_t *esp_zb_temperature_meas_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT);
-    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID, &temperature);
-    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_MIN_VALUE_ID, &temperature);
-    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_MAX_VALUE_ID, &temperature);
+    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID, &undefined_value);
+    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_MIN_VALUE_ID, &undefined_value);
+    esp_zb_temperature_meas_cluster_add_attr(esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_MAX_VALUE_ID, &undefined_value);
 
     /* Humidity cluster */
     esp_zb_attribute_list_t *esp_zb_humidity_meas_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT);
-    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_VALUE_ID, &humidity);
-    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_MIN_VALUE_ID, &humidity);
-    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_MAX_VALUE_ID, &humidity);
+    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_VALUE_ID, &undefined_value);
+    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_MIN_VALUE_ID, &undefined_value);
+    esp_zb_humidity_meas_cluster_add_attr(esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_MAX_VALUE_ID, &undefined_value);
 
     /* Presure cluster */
     esp_zb_attribute_list_t *esp_zb_press_meas_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT);
-    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID, &pressure);
-    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_MIN_VALUE_ID, &pressure);
-    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_MAX_VALUE_ID, &pressure);
+    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID, &undefined_value);
+    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_MIN_VALUE_ID, &undefined_value);
+    esp_zb_pressure_meas_cluster_add_attr(esp_zb_press_meas_cluster, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_MAX_VALUE_ID, &undefined_value);
 
     /* Time cluster */
     esp_zb_attribute_list_t *esp_zb_server_time_cluster = esp_zb_zcl_attr_list_create(ESP_ZB_ZCL_CLUSTER_ID_TIME);
@@ -497,10 +499,9 @@ static void esp_zb_task(void *pvParameters)
     const uint16_t attr_id = 0;
     const uint8_t attr_type = ESP_ZB_ZCL_ATTR_TYPE_U16;
     const uint8_t attr_access = ESP_ZB_ZCL_ATTR_MANUF_SPEC | ESP_ZB_ZCL_ATTR_ACCESS_READ_ONLY | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING;
-    void *attr_value = &CO2_value;
 
     esp_zb_attribute_list_t *custom_co2_attributes_list = esp_zb_zcl_attr_list_create(CO2_CUSTOM_CLUSTER);
-    esp_zb_custom_cluster_add_custom_attr(custom_co2_attributes_list, attr_id, attr_type, attr_access, attr_value);
+    esp_zb_custom_cluster_add_custom_attr(custom_co2_attributes_list, attr_id, attr_type, attr_access, &undefined_value);
 
     /** Create ota client cluster with attributes.
      *  Manufacturer code, image type and file version should match with configured values for server.
@@ -560,6 +561,6 @@ void app_main(void)
 	xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
 	xTaskCreate(sensair_tx_task, "sensor_tx_task", 4096, NULL, 3, NULL);
     xTaskCreate(sensair_rx_task, "sensor_rx_task", 4096, NULL, 4, NULL);
-    xTaskCreate(update_attribute, "Update_attribute_value", 4096, NULL, 6, NULL);
+    xTaskCreate(update_attribute, "Update_attribute_value", 4096, NULL, 5, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 6, NULL);
 }
