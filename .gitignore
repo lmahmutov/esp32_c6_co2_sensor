@@ -16,7 +16,7 @@ _build/
 
 pytest_embedded_log/
 # VS Code Settings
-.vscode/
+#.vscode/
 
 # clangd set
 .clangd

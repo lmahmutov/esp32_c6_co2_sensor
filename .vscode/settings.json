@@ -1,0 +1,8 @@
+{
+    "idf.adapterTargetName": "esp32c6",
+    "idf.portWin": "COM5",
+    "idf.flashType": "UART",
+    "files.associations": {
+        "esp_zigbee_zcl_common.h": "c"
+    }
+}
