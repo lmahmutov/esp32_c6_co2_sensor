@@ -313,17 +313,20 @@ void update_attribute()
                 ESP_LOGE(TAG, "Setting pressure attribute failed!");
             }
             
-            /* Write new CO2_value value */
-            esp_zb_zcl_status_t state_co2 = esp_zb_zcl_set_attribute_val(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 0, &CO2_value, false);
-            
-            /* Check for error */
-            if(state_co2 != ESP_ZB_ZCL_STATUS_SUCCESS)
+            if (CO2_value != 0)
             {
-                ESP_LOGE(TAG, "Setting CO2_value attribute failed!");
-            }
+                /* Write new CO2_value value */
+                esp_zb_zcl_status_t state_co2 = esp_zb_zcl_set_attribute_val(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 0, &CO2_value, false);
+                
+                /* Check for error */
+                if(state_co2 != ESP_ZB_ZCL_STATUS_SUCCESS)
+                {
+                    ESP_LOGE(TAG, "Setting CO2_value attribute failed!");
+                }
 
-            /* CO2 Cluster is custom and we must report it manually*/
-            reportAttribute(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, 0, &CO2_value, 2);
+                /* CO2 Cluster is custom and we must report it manually*/
+                reportAttribute(SENSOR_ENDPOINT, CO2_CUSTOM_CLUSTER, 0, &CO2_value, 2);
+            }
         }
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
@@ -362,7 +365,7 @@ static esp_err_t zb_read_attr_resp_handler(const esp_zb_zcl_cmd_read_attr_resp_m
         case ESP_ZB_ZCL_CLUSTER_ID_TIME:
             ESP_LOGI(TAG, "Server time recieved %lu", *(uint32_t*) message->attribute.data.value);
             struct timeval tv;
-            tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800 - 1080;
+            tv.tv_sec = *(uint32_t*) message->attribute.data.value + 946684800 - 1080; //after adding OTA cluster time shifted to 1080 sec... strange issue ... 
             settimeofday(&tv, NULL);
             time_updated = true;
             break;
