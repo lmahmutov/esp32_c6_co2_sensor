@@ -26,6 +26,7 @@ int lcd_timeout = 30;
 uint8_t screen_number = 0; 
 uint16_t temperature = 0, humidity = 0, pressure = 0, CO2_value = 0;
 float temp = 0, pres = 0, hum = 0;
+char strftime_buf[64];
 static ssd1306_handle_t ssd1306_dev = NULL;
 SemaphoreHandle_t i2c_semaphore = NULL;
 static const char *TAG = "ESP_HA_CO2_SENSOR";
@@ -115,6 +116,15 @@ esp_err_t i2c_master_init()
 }
 
 /* --------- User task section -----------------*/
+static void get_rtc_time()
+{
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    strftime(strftime_buf, sizeof(strftime_buf), "%a %H:%M:%S", &timeinfo);    
+}
+
 static void lcd_task(void *pvParameters)
 {
 	/* Start lcd */
@@ -174,12 +184,7 @@ static void lcd_task(void *pvParameters)
             {
                 if (time_updated)
                 {
-                    time_t now;
-                    char strftime_buf[64];
-                    struct tm timeinfo;
-                    time(&now);
-                    localtime_r(&now, &timeinfo);
-                    strftime(strftime_buf, sizeof(strftime_buf), "%a %H:%M:%S", &timeinfo);
+                    get_rtc_time();
                     ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
                     ssd1306_draw_string(ssd1306_dev, 5, 48, (const uint8_t *)strftime_buf, 16, 1);
                 }
@@ -258,12 +263,21 @@ static void demo_task()
 {
     while (1)
     {
-        temperature = rand() % (1000 + 1 - 0);
-        humidity = rand() % (1000 + 1 - 0);
-        pressure = rand() % (1000 + 1 - 800);
-        CO2_value = rand() % (3000 + 1 - 400);
-    }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+        if (connected)
+            {  
+                temperature = rand() % (3000 + 1 - 1000);
+                humidity = rand() % (9000 + 1 - 2000);
+                pressure = rand() % (1000 + 1 - 800);
+                CO2_value = rand() % (3000 + 1 - 400);
+                ESP_LOGI("DEMO MODE", "Temp = %d, Humm = %d, Press = %d, CO2_Value = %d", temperature, humidity, pressure, CO2_value);
+                if (time_updated)
+                {
+                    get_rtc_time();
+                    ESP_LOGI("DEMO MODE", "The current date/time is: %s", strftime_buf);
+                }
+            }
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }  
 }
 /*----------------------------------------*/
 
