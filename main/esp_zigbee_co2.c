@@ -21,7 +21,7 @@
 
 /*------ Clobal definitions -----------*/
 static char manufacturer[16], model[16], firmware_version[16];
-bool time_updated = false, connected = false;
+bool time_updated = false, connected = false, DEMO_MODE = true; /*< DEMO_MDE disable all real sensors and send fake data*/
 int lcd_timeout = 30;
 uint8_t screen_number = 0; 
 uint16_t temperature = 0, humidity = 0, pressure = 0, CO2_value = 0;
@@ -252,6 +252,18 @@ static void bmx280_task(void *pvParameters)
         humidity = (uint16_t)(hum * 100);
         pressure = (uint16_t)(pres/100);
     }
+}
+
+static void demo_task()
+{
+    while (1)
+    {
+        temperature = rand() % (1000 + 1 - 0);
+        humidity = rand() % (1000 + 1 - 0);
+        pressure = rand() % (1000 + 1 - 800);
+        CO2_value = rand() % (3000 + 1 - 400);
+    }
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 /*----------------------------------------*/
 
@@ -560,10 +572,17 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
-	xTaskCreate(lcd_task, "lcd_task", 4096, NULL, 1, NULL);
-	xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
-	xTaskCreate(sensair_tx_task, "sensor_tx_task", 4096, NULL, 3, NULL);
-    xTaskCreate(sensair_rx_task, "sensor_rx_task", 4096, NULL, 4, NULL);
+    if (!DEMO_MODE)
+    {
+        xTaskCreate(lcd_task, "lcd_task", 4096, NULL, 1, NULL);
+	    xTaskCreate(bmx280_task, "bmx280_task",  4096, NULL, 2, NULL);
+	    xTaskCreate(sensair_tx_task, "sensor_tx_task", 4096, NULL, 3, NULL);
+        xTaskCreate(sensair_rx_task, "sensor_rx_task", 4096, NULL, 4, NULL); 
+    }
+    else
+    {
+        xTaskCreate(demo_task, "demo_task", 4096, NULL, 1, NULL);
+    }
     xTaskCreate(update_attribute, "Update_attribute_value", 4096, NULL, 5, NULL);
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 6, NULL);
 }
