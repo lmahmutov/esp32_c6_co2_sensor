@@ -1,8 +1,15 @@
 {
-    "idf.adapterTargetName": "esp32c6",
     "idf.portWin": "COM5",
     "idf.flashType": "UART",
     "files.associations": {
-        "esp_zigbee_zcl_common.h": "c"
-    }
+        "zboss_api.h": "c",
+        "zb_zcl_custom_cluster.h": "c",
+        "esp_efuse.h": "c",
+        "esp_efuse_table.h": "c",
+        "esp_mac.h": "c",
+        "sensair_s8.h": "c",
+        "compare": "c",
+        "zb_zcl_reporting.h": "c"
+    },
+    "idf.adapterTargetName": "esp32c6"
 }
